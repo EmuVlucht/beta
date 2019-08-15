@@ -1,4 +1,4 @@
-name: Release UploadServer APK
+name: Release NetShelfy+ APK
 
 # Trigger: push tag dengan format v1.0.0 atau v1.0.0+2
 on:
@@ -61,9 +61,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: "UploadServer ${{ env.VERSION }}"
+          name: "NetShelfy+ ${{ env.VERSION }}"
           body: |
-            ## UploadServer ${{ env.VERSION }} (build ${{ env.BUILD }})
+            ## NetShelfy+ ${{ env.VERSION }} (build ${{ env.BUILD }})
 
             ### Cara Install
             1. Download `app-release.apk` di bawah
@@ -74,27 +74,37 @@ jobs:
 
             ### Changelog
 
-            **🚀 Features**
-            - Jalankan HTTP upload server (Python `uploadserver`) langsung dari Android — tanpa Termux
-            - Browse & pilih direktori yang di-serve: Internal Storage, SD Card, USB, System
-            - Start / Pause / Resume / Stop server dari UI
-            - Port kustom (default: 8000)
-            - Tema: Terang / Gelap / Ikuti Sistem
-            - Basic Auth untuk proteksi download
-            - Basic Auth Upload Only — hanya upload yang dikunci
-            - Preview perintah server sebelum dijalankan
-            - Auto-update in-app: cek GitHub Releases → download APK baru → trigger installer Android
+            **♻️ Rename & Rebranding**
+            - Nama project: `UploadServer` → `NetShelfy+`
+            - Package ID: `com.uploadserver.app` → `com.twos.netshelfy.verseapp`
+            - `pubspec.yaml` name: `uploadserver` → `netshelfy`
+            - Label app di AndroidManifest: `NetShelfy+`
+            - CI artifact name: `uploadserver-release` → `netshelfy-release`
+
+            **🚀 New**
+            - `lib/services/foreground_service.dart` — server kini berjalan sebagai Android Foreground Service
+              sehingga tetap aktif saat app diminimize atau layar mati
+            - Tambah permission foreground service di `AndroidManifest.xml`:
+              `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_DATA_SYNC`, `POST_NOTIFICATIONS`, `WAKE_LOCK`
+            - `ic_launcher_foreground.png` ditambahkan di semua densitas mipmap
+              (hdpi / mdpi / xhdpi / xxhdpi / xxxhdpi)
+            - Folder `docs/` ditambahkan sebagai tempat dokumentasi proyek
+
+            **🔧 Updated**
+            - `pubspec.yaml`: tambah dependensi `flutter_foreground_task ^8.0.1`
+            - `update_service.dart`: `MethodChannel` dan cache path diperbarui ke package ID baru
+            - `server_service.dart`: `MethodChannel` diperbarui ke package ID baru
+            - `LICENSE`: `flutter_foreground_task` diakui sebagai third-party component
 
             **🧱 Stack**
             - Flutter (Dart) — UI Material Design 3
             - Kotlin — native Android bridge via `MethodChannel`
             - Python 3.11 (Chaquopy) — HTTP server via `server_bridge.py`, di-bundle ke dalam APK
-            - `package_info_plus` — baca versi app saat ini untuk perbandingan update
+            - `flutter_foreground_task` — persistent background execution
 
             **⚙️ CI/CD**
             - `build.yml` — Build APK otomatis pada setiap push/pull request ke `main`
             - `release.yml` — Build & publish GitHub Release otomatis saat push tag `v*`
-            - Version & build number di-inject dari tag Git ke `pubspec.yaml` saat build
 
             **📄 License**
             - MIT License © 2026 EmuVlucht
