@@ -1,0 +1,105 @@
+name: Release UploadServer APK
+
+# Trigger: push tag dengan format v1.0.0 atau v1.0.0+2
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    name: Build & Release APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Verify Python
+        run: python3 --version
+
+      - name: Setup Flutter (stable)
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Create local.properties
+        run: echo "flutter.sdk=$FLUTTER_ROOT" > android/local.properties
+
+      # Update versionName + versionCode di pubspec.yaml dari tag
+      # Tag format: v1.2.0 → version: 1.2.0+{github_run_number}
+      - name: Set version from tag
+        run: |
+          TAG="${GITHUB_REF_NAME}"            # misal v1.2.0
+          VERSION="${TAG#v}"                  # misal 1.2.0
+          BUILD="${GITHUB_RUN_NUMBER}"        # auto increment
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "BUILD=$BUILD"     >> $GITHUB_ENV
+          # Update pubspec.yaml
+          sed -i "s/^version:.*/version: $VERSION+$BUILD/" pubspec.yaml
+          echo "pubspec version updated: $VERSION+$BUILD"
+          cat pubspec.yaml | grep "^version:"
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze (non-fatal)
+        run: flutter analyze --no-fatal-infos || true
+
+      - name: Build APK Release
+        run: flutter build apk --release
+
+      # Buat GitHub Release dan upload APK
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "UploadServer ${{ env.VERSION }}"
+          body: |
+            ## UploadServer ${{ env.VERSION }} (build ${{ env.BUILD }})
+
+            ### Cara Install
+            1. Download `app-release.apk` di bawah
+            2. Aktifkan *Install from unknown sources* di HP Android
+            3. Install APK — atau buka app yang sudah terinstall, notif update otomatis akan muncul
+
+            ---
+
+            ### Changelog
+
+            **🚀 Features**
+            - Jalankan HTTP upload server (Python `uploadserver`) langsung dari Android — tanpa Termux
+            - Browse & pilih direktori yang di-serve: Internal Storage, SD Card, USB, System
+            - Start / Pause / Resume / Stop server dari UI
+            - Port kustom (default: 8000)
+            - Tema: Terang / Gelap / Ikuti Sistem
+            - Basic Auth untuk proteksi download
+            - Basic Auth Upload Only — hanya upload yang dikunci
+            - Preview perintah server sebelum dijalankan
+            - Auto-update in-app: cek GitHub Releases → download APK baru → trigger installer Android
+
+            **🧱 Stack**
+            - Flutter (Dart) — UI Material Design 3
+            - Kotlin — native Android bridge via `MethodChannel`
+            - Python 3.11 (Chaquopy) — HTTP server via `server_bridge.py`, di-bundle ke dalam APK
+            - `package_info_plus` — baca versi app saat ini untuk perbandingan update
+
+            **⚙️ CI/CD**
+            - `build.yml` — Build APK otomatis pada setiap push/pull request ke `main`
+            - `release.yml` — Build & publish GitHub Release otomatis saat push tag `v*`
+            - Version & build number di-inject dari tag Git ke `pubspec.yaml` saat build
+
+            **📄 License**
+            - MIT License © 2026 EmuVlucht
+          files: build/app/outputs/flutter-apk/app-release.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
