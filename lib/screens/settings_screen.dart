@@ -245,7 +245,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               leading: Icon(Icons.info_outline, color: cs.primary),
               title: const Text('Versi'),
               subtitle: const Text('NetShelfy+ for Android'),
-              trailing: Text('1.0.1',
+              trailing: Text('1.0.2',
                   style: TextStyle(fontFamily: 'monospace', fontSize: 12, color: cs.onSurfaceVariant)),
             ),
           ]),

@@ -13,9 +13,9 @@ class ForegroundSvc {
       ),
       iosNotificationOptions: const IOSNotificationOptions(),
       foregroundTaskOptions: ForegroundTaskOptions(
-        eventAction:     ForegroundTaskEventAction.nothing(),
-        allowWakeLock:   true,
-        allowWifiLock:   true,
+        eventAction:  ForegroundTaskEventAction.nothing(),
+        allowWakeLock: true,
+        allowWifiLock: true,
       ),
     );
   }
@@ -33,33 +33,31 @@ class ForegroundSvc {
     required String directory,
     required int port,
   }) async {
-    if (await FlutterForegroundTask.isRunningService) return;
+    if (await FlutterForegroundTask.isRunningService) {
+      await FlutterForegroundTask.updateService(
+        notificationTitle: 'NetShelfy+ Aktif',
+        notificationText:  '$directory · port $port',
+      );
+      return;
+    }
+
     await FlutterForegroundTask.startService(
       serviceId:         1001,
       notificationTitle: 'NetShelfy+ Aktif',
       notificationText:  '$directory · port $port',
       notificationButtons: [
-        const NotificationButton(id: 'stop', text: 'Stop'),
+        const NotificationButton(id: 'btn_stop', text: 'Stop'),
       ],
       callback: _foregroundCallback,
     );
   }
 
   static Future<void> stop() async {
-    if (await FlutterForegroundTask.isRunningService) {
-      await FlutterForegroundTask.stopService();
-    }
+    await FlutterForegroundTask.stopService();
   }
 
-  static Future<void> updateNotification({
-    required String title,
-    required String text,
-  }) async {
-    await FlutterForegroundTask.updateService(
-      notificationTitle: title,
-      notificationText:  text,
-    );
-  }
+  static Future<bool> get isRunning =>
+      FlutterForegroundTask.isRunningService;
 }
 
 @pragma('vm:entry-point')
@@ -79,8 +77,9 @@ class _NetShelfyTaskHandler extends TaskHandler {
 
   @override
   void onNotificationButtonPressed(String id) {
-    if (id == 'stop') {
-      FlutterForegroundTask.sendDataToMain({'action': 'stop'});
+    if (id == 'btn_stop') {
+      // Kirim ke Flutter UI untuk stop server + service
+      FlutterForegroundTask.sendDataToMain('stop');
     }
   }
 }

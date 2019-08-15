@@ -78,13 +78,24 @@ class UpdateService {
       if (remoteBuild <= currentBuild) return null;
 
       // Cari URL APK di assets release
+      // Prioritas: universal APK (netshelfy-*-universal.apk), fallback ke app-release.apk
       final assets = json['assets'] as List<dynamic>? ?? [];
       String? downloadUrl;
       for (final asset in assets) {
         final name = asset['name'] as String? ?? '';
-        if (name == _kApkAsset) {
+        if (name.contains('universal') && name.endsWith('.apk')) {
           downloadUrl = asset['browser_download_url'] as String?;
           break;
+        }
+      }
+      // Fallback ke app-release.apk jika universal tidak ada
+      if (downloadUrl == null) {
+        for (final asset in assets) {
+          final name = asset['name'] as String? ?? '';
+          if (name == _kApkAsset) {
+            downloadUrl = asset['browser_download_url'] as String?;
+            break;
+          }
         }
       }
 

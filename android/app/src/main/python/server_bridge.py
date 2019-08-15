@@ -1,7 +1,5 @@
 """
-server_bridge.py — Chaquopy bridge untuk uploadserver.
-
-start(directory, port, theme, basic_auth, basic_auth_upload)
+server_bridge.py — Chaquopy bridge untuk uploadserver v6.
 """
 
 import os
@@ -9,6 +7,7 @@ import threading
 import http.server
 import inspect
 import base64
+import functools
 
 _server      = None
 _pause_event = threading.Event()
@@ -17,6 +16,7 @@ _lock        = threading.Lock()
 
 
 def _find_handler_class():
+    """Cari handler class dari uploadserver."""
     import uploadserver
     for candidate in ("UploadHTTPRequestHandler", "SimpleHTTPRequestHandler",
                       "Handler", "HTTPRequestHandler"):
@@ -69,7 +69,7 @@ def start(directory, port=8000, theme="auto",
         if BaseHandler is None:
             return "error: cannot find uploadserver handler class"
 
-        # Terapkan --theme ke modul uploadserver
+        # Set theme
         try:
             import uploadserver as _usmod
             if hasattr(_usmod, 'theme'):
@@ -79,20 +79,31 @@ def start(directory, port=8000, theme="auto",
         except Exception:
             pass
 
-        # Pindah ke direktori yang dipilih user.
-        # Ini cara paling kompatibel — uploadserver v6 serve dari CWD.
+        # os.chdir sebagai fallback
         try:
             os.chdir(str(directory))
-        except Exception as e:
-            return f"error: cannot chdir to {directory}: {e}"
+        except Exception:
+            pass
 
         ev            = _pause_event
         auth_check    = _make_auth_checker(basic_auth)
         auth_up_check = _make_auth_checker(basic_auth_upload)
+        dir_str       = str(directory)
+
+        # Coba buat handler dengan directory kwarg (cara paling kompatibel)
+        try:
+            # Test apakah BaseHandler menerima directory kwarg
+            import inspect as _inspect
+            sig = _inspect.signature(BaseHandler.__init__)
+            has_dir_kwarg = 'directory' in sig.parameters
+        except Exception:
+            has_dir_kwarg = False
 
         class PausableHandler(BaseHandler):
-            # Tidak override __init__ — biarkan uploadserver handle sendiri.
-            # Directory sudah di-set via os.chdir() di atas.
+            def __init__(self, *args, **kwargs):
+                if has_dir_kwarg:
+                    kwargs.setdefault('directory', dir_str)
+                super().__init__(*args, **kwargs)
 
             def handle(self):
                 ev.wait()
@@ -129,6 +140,7 @@ def start(directory, port=8000, theme="auto",
 
         try:
             _server = http.server.HTTPServer(("0.0.0.0", int(port)), PausableHandler)
+            _server.allow_reuse_address = True
             t = threading.Thread(target=_server.serve_forever, daemon=True)
             t.start()
             return "ok"
@@ -155,6 +167,7 @@ def stop():
             _pause_event.set()
             try:
                 _server.shutdown()
+                _server.server_close()
             except Exception:
                 pass
             _server = None

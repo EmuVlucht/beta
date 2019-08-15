@@ -1,6 +1,5 @@
 name: Release NetShelfy+ APK
 
-# Trigger: push tag dengan format v1.0.0 atau v1.0.0+2
 on:
   push:
     tags:
@@ -33,19 +32,16 @@ jobs:
       - name: Create local.properties
         run: echo "flutter.sdk=$FLUTTER_ROOT" > android/local.properties
 
-      # Update versionName + versionCode di pubspec.yaml dari tag
-      # Tag format: v1.2.0 → version: 1.2.0+{github_run_number}
       - name: Set version from tag
         run: |
-          TAG="${GITHUB_REF_NAME}"            # misal v1.2.0
-          VERSION="${TAG#v}"                  # misal 1.2.0
-          BUILD="${GITHUB_RUN_NUMBER}"        # auto increment
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+          VERSION="${VERSION%%+*}"
+          BUILD="${GITHUB_RUN_NUMBER}"
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "BUILD=$BUILD"     >> $GITHUB_ENV
-          # Update pubspec.yaml
           sed -i "s/^version:.*/version: $VERSION+$BUILD/" pubspec.yaml
-          echo "pubspec version updated: $VERSION+$BUILD"
-          cat pubspec.yaml | grep "^version:"
+          echo "pubspec version: $VERSION+$BUILD"
 
       - name: Install dependencies
         run: flutter pub get
@@ -53,10 +49,33 @@ jobs:
       - name: Analyze (non-fatal)
         run: flutter analyze --no-fatal-infos || true
 
-      - name: Build APK Release
-        run: flutter build apk --release
+      - name: Build APK Universal
+        run: |
+          flutter build apk --release
+          cp build/app/outputs/flutter-apk/app-release.apk \
+             build/app/outputs/flutter-apk/netshelfy-${{ env.VERSION }}-universal.apk
 
-      # Buat GitHub Release dan upload APK
+      - name: Build APK arm64-v8a
+        run: |
+          flutter build apk --release --target-platform android-arm64
+          cp build/app/outputs/flutter-apk/app-release.apk \
+             build/app/outputs/flutter-apk/netshelfy-${{ env.VERSION }}-arm64-v8a.apk
+
+      - name: Build APK armeabi-v7a
+        run: |
+          flutter build apk --release --target-platform android-arm
+          cp build/app/outputs/flutter-apk/app-release.apk \
+             build/app/outputs/flutter-apk/netshelfy-${{ env.VERSION }}-armeabi-v7a.apk
+
+      - name: Build APK x86_64
+        run: |
+          flutter build apk --release --target-platform android-x64
+          cp build/app/outputs/flutter-apk/app-release.apk \
+             build/app/outputs/flutter-apk/netshelfy-${{ env.VERSION }}-x86_64.apk
+
+      - name: List APKs
+        run: ls -lh build/app/outputs/flutter-apk/*.apk
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -65,8 +84,16 @@ jobs:
           body: |
             ## NetShelfy+ ${{ env.VERSION }} (build ${{ env.BUILD }})
 
+            ### Download
+            | File | Untuk |
+            |------|-------|
+            | `netshelfy-*-universal.apk` | Semua HP (direkomendasikan) |
+            | `netshelfy-*-arm64-v8a.apk` | HP modern 64-bit |
+            | `netshelfy-*-armeabi-v7a.apk` | HP lama 32-bit |
+            | `netshelfy-*-x86_64.apk` | Emulator 64-bit |
+
             ### Cara Install
-            1. Download `app-release.apk` di bawah
+            1. Download APK sesuai HP kamu
             2. Aktifkan *Install from unknown sources* di HP Android
             3. Install APK — atau buka app yang sudah terinstall, notif update otomatis akan muncul
 
@@ -74,27 +101,17 @@ jobs:
 
             ### Changelog
 
-            **♻️ Rename & Rebranding**
-            - Nama project: `UploadServer` → `NetShelfy+`
-            - Package ID: `com.uploadserver.app` → `com.twos.netshelfy.verseapp`
-            - `pubspec.yaml` name: `uploadserver` → `netshelfy`
-            - Label app di AndroidManifest: `NetShelfy+`
-            - CI artifact name: `uploadserver-release` → `netshelfy-release`
+            **🧹 Cleanup**
+            - Hapus sisa folder lama `com/uploadserver/app/` beserta `MainActivity.kt`-nya
+            - Kotlin package tree kini bersih: hanya `com/twos/netshelfy/verseapp/`
 
-            **🚀 New**
-            - `lib/services/foreground_service.dart` — server kini berjalan sebagai Android Foreground Service
-              sehingga tetap aktif saat app diminimize atau layar mati
-            - Tambah permission foreground service di `AndroidManifest.xml`:
-              `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_DATA_SYNC`, `POST_NOTIFICATIONS`, `WAKE_LOCK`
-            - `ic_launcher_foreground.png` ditambahkan di semua densitas mipmap
-              (hdpi / mdpi / xhdpi / xxhdpi / xxxhdpi)
-            - Folder `docs/` ditambahkan sebagai tempat dokumentasi proyek
-
-            **🔧 Updated**
-            - `pubspec.yaml`: tambah dependensi `flutter_foreground_task ^8.0.1`
-            - `update_service.dart`: `MethodChannel` dan cache path diperbarui ke package ID baru
-            - `server_service.dart`: `MethodChannel` diperbarui ke package ID baru
-            - `LICENSE`: `flutter_foreground_task` diakui sebagai third-party component
+            **⚙️ CI/CD — release.yml overhaul**
+            - Build sekarang menghasilkan 4 varian APK per release:
+              `universal`, `arm64-v8a`, `armeabi-v7a`, `x86_64`
+            - Setiap APK diberi nama eksplisit: `netshelfy-{version}-{arch}.apk`
+            - `Set version from tag` diperbaiki: strip suffix `+build` dari tag
+              dengan `VERSION="${VERSION%%+*}"` agar `pubspec.yaml` tidak korup
+            - Semua 4 APK di-upload sekaligus ke GitHub Release
 
             **🧱 Stack**
             - Flutter (Dart) — UI Material Design 3
@@ -102,13 +119,14 @@ jobs:
             - Python 3.11 (Chaquopy) — HTTP server via `server_bridge.py`, di-bundle ke dalam APK
             - `flutter_foreground_task` — persistent background execution
 
-            **⚙️ CI/CD**
-            - `build.yml` — Build APK otomatis pada setiap push/pull request ke `main`
-            - `release.yml` — Build & publish GitHub Release otomatis saat push tag `v*`
-
             **📄 License**
             - MIT License © 2026 EmuVlucht
-          files: build/app/outputs/flutter-apk/app-release.apk
+
+          files: |
+            build/app/outputs/flutter-apk/netshelfy-${{ env.VERSION }}-universal.apk
+            build/app/outputs/flutter-apk/netshelfy-${{ env.VERSION }}-arm64-v8a.apk
+            build/app/outputs/flutter-apk/netshelfy-${{ env.VERSION }}-armeabi-v7a.apk
+            build/app/outputs/flutter-apk/netshelfy-${{ env.VERSION }}-x86_64.apk
           draft: false
           prerelease: false
         env:
